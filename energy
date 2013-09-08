@@ -1,0 +1,80 @@
+--Variables
+redSide = "bottom"
+readerSide = "left"
+
+reader = peripheral.wrap(readerSide)
+msg = ""
+
+function checkStatus()
+	-- status = 0, 1 ,2
+	data = reader.get()
+	
+	if data["Full Energy"] == true then
+		status = 0
+		msg = "Full"
+		if charging == true then
+			msg = "Full now, turning off chargers"
+			rs.setOutput(redSide,false)
+			charging = false
+		end
+		
+	else 
+		
+		if charging == true then
+			--Still not full, leave status
+			status = 2
+			msg = "Charging"
+		else
+			if data["No Energy"] == true then
+				msg = "Empty, starting charge"
+				status = 2
+				rs.setOutput(redSide,true)
+				charging = true
+			else
+				--Not discharged
+				status = 1
+				msg = "Partially full"
+			end
+		end
+		
+	end
+	
+return status
+	
+	
+end
+
+function drawScreen()
+	term.clear()
+	term.setCursorPos(1,1)
+	name = os.getComputerLabel()
+	term.write("***************************************************")
+	term.setCursorPos(1,3)
+	term.write("***************************************************")
+	
+	term.setCursorPos(10,2)
+	term.write(name)
+	
+	
+	term.setCursorPos(3,5)
+	term.write("***   Current status   ***")
+	term.setCursorPos(12,7)
+	term.write(msg)
+	
+	
+	term.setCursorPos(1,16)
+	term.write("Next update in: ")
+	num = 20
+	for i = num,1,-1 do
+		term.setCursorPos(17,16)
+		term.write(tostring(i).." seconds   ")
+		term.setCursorPos(1,17)
+		sleep(1)
+	end
+end
+
+
+while true do
+	checkStatus()
+	drawScreen()
+end

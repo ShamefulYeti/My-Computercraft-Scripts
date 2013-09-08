@@ -1,0 +1,21 @@
+controlSide = "top"
+nuControl  = peripheral.wrap(controlSide)
+
+slots = nuControl.getSlots()
+term.clear()
+term.setCursorPos(1,1)
+for c = 1,slots do 
+	id, state, title, data = nuControl.get(c)
+	print("Checking Slot number: "..tostring(c))
+	
+		print("ID: "..tostring(id))
+		print("State: "..tostring(state))
+		print("Title: "..tostring(title))
+		print("Data on card:")
+			for n,m in pairs(data) do 
+				print("  ["..n.."] = "..tostring(m))
+			end
+
+	print("--- End of info ---")
+	read()
+end

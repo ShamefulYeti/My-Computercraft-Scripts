@@ -1,0 +1,940 @@
+--Config options
+mode = "None"
+final = 16 --Number of final slot in turtle
+slot = 1
+state = 1
+dispMsg = "None"
+counter = 0
+fuel = 0
+monitorID = 2
+modemSide = "back"
+
+--Pattern configs and saved locations
+locations = {}
+locations.floor = {-3,1,4} -- x, y, z
+locations.wall = {-2,1,4}
+locations.decor = {-1,1,4}
+locations.roof = {1,1,4}
+locations.glass = {2,1,4}
+locations.trash = {3,1,4}
+
+
+patterns = {}
+
+patterns["9x9"] = {}
+patterns["9x9"].wall = "wggw"
+-- patterns["9x9"]["need"] = {"floor","wall","decor","roof","glasss"}
+patterns["9x9"].need = {"81","wall","decor","81","roof"}
+patterns["9x9"].width = 9
+patterns["9x9"].depth = 9
+patterns["9x9"].height = 4+1
+patterns["9x9"].intMove = 4
+patterns["9x9"].wallDecor = 3
+patterns["9x9"].wall = {
+	[1] = "dwwwdwww", -- this should be 1 less in length than depth of block
+	[2] = "dwgwdwgw",
+	[3] = "dwgwdwgw",
+	[4] = "dwwwdwww"
+} 
+
+
+patterns["21x21"] = {}
+patterns["21x21"].wall = "wgggw"
+patterns["21x21"].need = {"441","wall","decor","441","glass"}
+patterns["21x21"].width = 21
+patterns["21x21"].depth = 21
+patterns["21x21"].height = 5+1
+patterns["21x21"].intMove = 10
+patterns["21x21"].wallDecor = 9
+patterns["21x21"].wall = {
+	[1] = "dwwwwdwwwwdwwwwdwwww", -- this should be 1 less in length than depth of block
+	[2] = "dwggwdwggwdwggwdwggw",
+	[3] = "dwggwdwggwdwggwdwggw",
+	[4] = "dwggwdwggwdwggwdwggw",
+	[5] = "dwwwwdwwwwdwwwwdwwww"
+} 
+
+--Load defauts
+place = false
+x = 0			--Width (left/right)
+y = 0			--Height (up/down)
+z = 0			--Depth (forward/back)
+face = 0 	--Direction (0=forward, 1=right, 2=backwards, 3=left)
+
+function charCount(str, char) 
+    if not str then
+        return 0
+    end
+
+    local count = 0 
+    local byte_char = string.byte(char)
+    for i = 1, #str do
+        if string.byte(str, i) == byte_char then
+            count = count + 1 
+        end 
+    end 
+    return count
+end
+
+function getCount(array)
+	
+	local wall = 0
+	local decor = 0
+	local glass = 0
+	
+	for key,value in ipairs(array) do
+		wall = wall + charCount(value,"w") -- update wall count
+		decor = decor + charCount(value,"d") -- update decor count
+		glass = glass + charCount(value,"g") -- update glass count
+	end
+	patterns[mode].need[2] = wall*4
+	patterns[mode].need[3] = decor*4
+	patterns[mode].need[5] = glass*4
+	
+	return true
+end
+
+function drawScreen()
+local statuses = {}
+statuses[1] = {name="Startup"} 
+statuses[2] = {name="Clearing area"}
+statuses[3] = {name="Setup area"}
+statuses[4] = {name="Building Floor" }
+statuses[5] = {name="Building Wall" }
+statuses[6] = {name="Building Roof" }
+statuses[7] = {name="Complete"}
+
+fuel = turtle.getFuelLevel()
+
+--Display info
+		term.clear()
+		term.setCursorPos(1,1)
+		term.write("Current Mode: "..tostring(state).." "..statuses[state].name)
+		term.setCursorPos(3,2)
+		term.write("Fuel Level: "..tostring(fuel))
+		term.setCursorPos(25,2)
+		term.write("Design: "..tostring(counter))
+		term.setCursorPos(1,3)
+		term.write("Current Location (from home base)")
+		term.setCursorPos(1,4)
+		term.write("X: "..tostring(x))
+		term.setCursorPos(10,4)
+		term.write("Left / Right")
+		
+		term.setCursorPos(1,5)
+		term.write("Y: "..tostring(y))
+		term.setCursorPos(10,5)
+		term.write("Up / Down")
+		
+		term.setCursorPos(1,6)
+		term.write("Z: "..tostring(z))
+		term.setCursorPos(10,6)
+		term.write("Forward / Back")
+		
+		term.setCursorPos(1,7)
+		local d = {"Forward / North (+Z)","Right / East (+X)","Back / South (-Z)","Left / West (-X)"}
+		term.write("F: "..tostring(face))
+		term.setCursorPos(10,7)
+		term.write(tostring(d[face+1]))
+
+		term.setCursorPos(1,9)
+		term.write("Message from function")
+		term.setCursorPos(1,10)
+		term.write(dispMsg)
+print("")
+local msg = ""
+msg = msg..tostring(state)..";"
+msg = msg..tostring(fuel)..";"
+msg = msg..tostring(mode)..";"
+msg = msg..tostring(x)..";"
+msg = msg..tostring(y)..";"
+msg = msg..tostring(z)..";"
+msg = msg..tostring(face)..";"
+msg = msg..tostring(dispMsg)..";"
+rednet.send(monitorID,msg)
+end
+
+function drawError()
+
+drawScreen()
+local tX = x
+local tY = y
+local tZ = z
+local tF = face
+ goHome(true)
+ goUp(1)
+
+
+print()
+print("Error has been found, carry on?")
+pull = read()
+	goMove("forward",1)
+	goTo(tX,tY,tZ,true)
+	goFace(tF)
+
+return pull
+end
+
+--Main movement funtions
+function goFace(d)
+	local faceDB= {}
+	faceDB["forward"] = 0
+	faceDB["right"] = 1
+	faceDB["back"] = 2
+	faceDB["left"] = 3
+	faceDB["north"] = 0
+	faceDB["east"] = 1
+	faceDB["south"] = 2
+	faceDB["west"] = 3
+	faceDB["0"] = 0
+	faceDB["1"] = 1
+	faceDB["2"] = 2
+	faceDB["3"] = 3
+	
+	d = tostring(d)
+	local direction = faceDB[d]
+	
+	if direction == face then
+		return true
+	else
+		while direction ~= face do
+			local compare = face - direction
+			if compare == 1 or compare == -3 then
+				--print("Going to try left -- "..tostring(compare))
+				turtle.turnLeft()
+				face = face - 1
+			else
+				turtle.turnRight()
+				face = face + 1
+			end
+			
+			if face == 4 then
+				face = 0
+			elseif face == -1 then
+				face = 3
+			end
+		end
+		return true
+	end
+end
+
+function goUp(t)
+	for i = 1, t, 1 do
+	turtle.digUp()
+	sleep(0.01)
+		if turtle.up() == false then
+		dispMsg="Couldn't move forward, please fix."
+		drawError()
+		goForward()
+		end
+	sleep(0.01)
+	y = y + 1
+	end
+end
+
+function goDown(t)
+if t < 1 then
+t = 1
+end
+	for i = 1, t, 1 do
+	turtle.digDown()
+	sleep(0.01)
+	turtle.down()
+	sleep(0.01)
+	y = y - 1
+	end
+end
+
+function goForward()
+
+	local moved = false
+	local tries = 0
+	moved = turtle.forward()
+	sleep(0.01)
+	
+	while tries < 4 and moved == false do
+		turtle.dig()
+		sleep(0.01)
+		moved = turtle.forward()
+		tries = tries + 1
+		sleep(0.01)
+	end 
+
+	
+	if moved == true then
+	counter = counter + 1
+		if face == 0 then -- Facing forward/north
+			z = z + 1
+			return true
+		elseif face == 1 then -- Facing right/east
+			x = x + 1
+			return true
+		elseif face == 2 then -- Facing back/south
+			z = z - 1
+			return true
+		elseif face == 3 then -- Facing left/west
+			x = x - 1
+			return true
+		else
+			dispMsg="Co-ord track error, quitting. Please reset me."
+			drawScreen()
+			error("This error was too serious, reset me")
+			return false
+		end
+		return true
+	else
+		dispMsg="Couldn't move forward, please fix."
+		drawError()
+		goForward()
+	end
+	return true
+end
+
+function goMove(d,t)
+	--Check direction facing
+	local c = goFace(d)
+	local i = 1
+	if c == true then
+		t = tonumber(t)
+		
+		for i = 1, t, 1 do
+			if place == true then
+				--Check if there is enough in slot
+					if turtle.getItemCount(slot) > 0 then
+						turtle.digDown()
+						turtle.select(slot)
+						turtle.placeDown()
+					else 
+						restockItems(false)
+					end
+					if turtle.getItemCount(slot) == 0 then
+						restockItems(false)
+					end
+			end
+			drawScreen()
+			if goForward() == false then
+				dispMsg = "Go forward, false, i = "..tostring(i).." , t = "..tostring(t)
+				drawError()
+				return false
+			end
+		end
+		return true
+	else
+		return false
+	end
+end
+
+function goTo(tX,tY,tZ,safe)
+	if safe == true then
+		amount = 5 - y
+		goUp(amount)
+	end
+	
+	if x == 0 and z == 0 then
+		goMove("forward",1)
+	end
+	
+	place = false
+--dispMsg = "Going to x="..tX..", y="..tY..", z="..tZ
+	drawScreen()
+--read()
+	if x > tX then
+		amount = 0
+		amount = x - tX
+		goMove("left",amount)
+	end
+	if x < tX then
+		amount = 0
+		amount = x - tX
+		amount = amount * -1 
+		goMove("right",amount)
+	end
+	
+	if z > tZ then 
+		amount = 0
+		amount = z - tZ
+		goMove("back",amount)
+	end
+	if z < tZ then
+		amount = 0
+		amount = z - tZ
+		amount = amount * -1
+		goMove("forward",amount)
+	end
+	
+	if y > tY then
+		amount = 0
+		amount = y - tY
+		goDown(amount)
+	end
+	if y < tY then
+		amount = 0
+		amount = y- tY
+		amount = amount * -1
+		goUp(amount)
+	end
+	
+	return true
+end
+
+function goToL(location,safe)
+	tX = location[1]
+	tY = location[2]
+	tZ = location[3]
+--	print("X="..tX..", Y="..tY..", Z="..tZ)
+--	read()
+	res = goTo(tX,tY,tZ,safe)
+end
+
+function goHome(safe) 
+	goTo(0,0,1,safe)
+	goMove("back",1)
+	goFace("forward")
+	drawScreen()
+end
+
+function checkSpace(saved)
+	saved = tonumber(saved)
+	start = 1 + saved
+	
+	for i = start, final, 1 do
+		-- Is this slot free
+		num = turtle.getItemCount(i)
+		--If yes, then return true and quit
+		if num == 0 then
+			return true
+		end
+		--If no, move on to next
+	end
+
+	return false
+end
+
+function checkFuel()
+	fuel = turtle.getFuelLevel()
+		while fuel < 100 do
+			dispMsg = "Need Fuel: Please type what slot it is in."
+			slot = drawError()
+			turtle.select(tonumber(slot))
+			turtle.refuel()
+			fuel = turtle.getFuelLevel()
+		end
+	return true
+end
+
+function dropItems(location,saved)
+	
+	--Move to correct location first
+	if location == 1 then
+		goHome(false)
+		goFace("back")
+	elseif location == 2 then
+		goToL(locations.trash,true)
+		goFace("forward")
+	else
+		dispMsg = "Drop items for location "..tostring(location)
+		drawError()
+	end
+	
+	--Now empty trash slots
+	saved = tonumber(saved)
+	start = 1 + saved
+	
+	for i = start, final, 1 do
+		if turtle.getItemCount(i) > 0 then
+		turtle.select(i)
+			if turtle.drop() == false then
+				dispMsg = "Chest infront of me is full, clear it!"
+				drawError()
+				turtle.drop()
+			end
+		
+		end
+	end
+	
+	
+end
+
+function restockItems(force)
+	-- Store location before moving
+	local tX = x
+	local tY = y
+	local tZ = z
+	local tF = face
+
+	if force == true then
+		-- Check if there are any items in inventory
+		local num = 0
+		for i = 1, final, 1 do
+			num = num + turtle.getItemCount(i)
+		end
+		
+		--Empty inventory if there is something
+		if num > 0 then
+			dropItems(2,0)
+		end
+	end
+
+	if state == 4 then-- Build floor
+			--Slot 1 should be floor materials
+			slot = 1
+			--Check if slot is free
+		if turtle.getItemCount(slot) < 1 then
+			goToL(locations.floor,true)
+			goFace("forward")
+			sleep(0.05)
+			turtle.select(slot)
+			turtle.suck()
+		end
+			
+	elseif state == 5 then -- Build walls
+			--Slot 1 should be wall materials
+				slot = 1
+				--Check if slot is free
+				if turtle.getItemCount(slot) < 1 then
+					goToL(locations.wall,true)
+					goFace("forward")
+					sleep(0.05)
+					turtle.select(slot)
+					turtle.suck()
+				end	
+			--Slot 2 should be decor materals
+				slot = 2
+				--Check if slot is free
+				if turtle.getItemCount(slot) < 1 then
+					goToL(locations.decor,false)
+					goFace("forward")
+					sleep(0.05)
+					turtle.select(slot)
+					turtle.suck()
+				end				
+			--Slot 3 should be glass
+				slot = 3
+				--Check if slot is free
+				if turtle.getItemCount(slot) < 1 then
+					goToL(locations.glass,false)
+					goFace("forward")
+					sleep(0.05)
+					turtle.select(slot)
+					turtle.suck()
+				end	
+			
+	else
+		dispMsg="Calling item refresh when not allowed"
+		drawScreen()
+		error("To big of an error to carry on")
+	end
+
+	--Go back to location where it was
+	goDown(1)
+	goTo(tX,tY,tZ,true)
+	sleep(0.05)
+	goFace(tF)
+end
+
+-- Status functions
+function startSystem()  -- State = 1, Startup script
+	term.clear()
+	term.setCursorPos(1,1)
+	print("** Snipes house builder, v1.09 **")
+	print(" ")
+	local res = ""
+	print("Please select the design you want")
+	print("1) Build a 9 x 9 house 4 high")
+	print("2) Build a 21 x 21 house, 5 high")
+	res = read()
+		if res == "1" then
+			mode = "9x9"
+		elseif res == "2" then
+			mode = "21x21"
+		else
+			mode = "9x9"
+		end
+	res = ""
+	
+	print(" ")
+	print("Do I need to clear the area first?")
+	print("1) It's clear, please build")
+	print("2) Please clear the area first")
+	res = read()
+		if res == "1" then
+			state = 3
+		elseif res == "2" then
+			state = 2
+		else
+			state = 1
+		end
+		term.clear()
+		term.setCursorPos(1,1)
+		print("Ok sure, I'm going to build:")
+		print("    House Size: "..mode)
+		if state == 2 then	res="Yes"
+		else	res="No"	end
+		print("    Clear first: "..res)
+		print(" ")
+		print("Please feed me the following:")
+		print("  Slot 1 = 6x Chests ")
+		print("     (Iron chests and above only)")
+		print("  Slot 2 = 6x Signs")
+		print("  Slot 3 = Fuel")
+		if state == 2 then
+			print("  Slot 4 = 1x Chest")
+			print("     (The bigger the better)")
+		end
+		print(" ")
+		print("Press any key once these are done")
+		res = read()
+		turtle.select(3)
+		turtle.refuel()
+		fuel = turtle.getFuelLevel()
+		term.clear()
+		term.setCursorPos(1,1)
+		print("Thank you very much")
+		print("I'm at fuel level: "..tostring(fuel))
+		return true
+end -- End of state = 0, startup script
+
+function clearArea() -- State = 2, Clear Area
+		--Head off to start point
+		
+		--Debuggin stuff
+		print("Ok I'm ready to clear out a "..mode.." area.")
+		print("If you are behind me.")
+		print("Please stand back!")
+		print(" ")
+		print("Press any button to run")
+		read()
+		drawScreen()
+		
+		counter = 0
+		goFace("back")
+		turtle.select(4)
+		turtle.place()
+		sleep(0.05)
+		turtle.select(1)
+		goMove("forward",1)
+		dispMsg="Going to the left, "..tostring(patterns[mode].intMove).." times"
+		goMove("left",patterns[mode].intMove)
+		dispMsg="In position, getting ready to go."
+		goFace("forward")
+		-- h = height, w = width, d = depth
+		drawScreen()
+		sleep(2)
+		sX = x
+		sZ = z
+		--Begin height loop
+		for h = 1, patterns[mode].height, 1 do
+			--Begin width loop
+			for w = 1, patterns[mode].width, 1 do
+				--Begin depth loop
+					for d = 2, patterns[mode].depth, 1 do 
+						goForward(1)
+						dispMsg="Height: "..tostring(h).." of "..tostring(patterns[mode].height)
+						dispMsg=dispMsg..", Width: "..tostring(w).." of "..tostring(patterns[mode].width)
+						dispMsg=dispMsg..", Depth: "..tostring(d).." of "..tostring(patterns[mode].depth)
+						drawScreen()
+						
+						if counter > 10 then
+							
+							--Check fuel level
+							checkFuel()
+							
+							--Check space still for digging
+							num = checkSpace(2)
+							if num == false then
+							dispMsg="Going to empty my bowles"
+							drawScreen()
+							-- If there are no more spaces
+							-- Save my current location
+							local tX = x
+							local tY = y
+							local tZ = z
+							local tF = face
+							goTo(sX,0,sZ,false) -- Go back to save location
+							dropItems(1,2) -- dropItems(savedLocation,Saved Slots)
+							goMove("forward",1) -- Finished dropping go back now
+							goTo(tX,tY,tZ,false) -- Go back to location
+							goFace(tF)
+							end
+							
+							counter = 0
+						end
+					end
+					
+					-- End of line move to next (if there is a next)
+					print("End of line, moving to next line")
+					if w ~= patterns[mode].width then
+							pFace=face
+							goMove("right",1)
+							
+						if pFace == 0 then
+							goFace("back")
+						elseif pFace == 2 then
+							goFace("forward")
+						else
+							print("I'm not going in the correct direction!!!")
+							return false
+						end
+					end
+			
+			end
+			
+			--End of level done, move back to starting point 
+			print("End of level done, moving back to starting point")
+			if h ~= patterns[mode].height then
+				goTo(sX,y,sZ,false)
+				goUp(1)
+				goFace("forward")
+			end
+			
+			
+		end
+		
+		-- End of digging
+		dispMsg = "I'm all done, going back home"
+		goHome(false)
+		dropItems(1,2)
+		state = 2 -- Switch over to placing chests mode
+		
+end  -- State = 2, Clear Area
+
+function chestSign(loc,msg)
+
+	goToL(loc,false)
+	goFace("forward")
+	turtle.select(1)
+	turtle.place()
+		--Place sign
+		goUp(1)
+		turtle.select(2)
+		turtle.place(msg)
+return true
+end
+
+function placeChests() -- state = 3, placing chests	
+
+
+
+-- Update values for signs
+getCount(patterns[mode].wall)
+
+
+
+goMove("forward",1)
+
+	--Place floor chest
+		dispMsg = "Placing floor chest"
+		drawScreen()
+		msg = "Floor chest\nNeed min\n"..patterns[mode].need[1].."\nblocks."
+		chestSign(locations.floor,msg)
+
+	--Place wall chest
+		dispMsg = "Placing wall chest"
+		drawScreen()
+		msg = "Wall chest\nNeed min\n"..patterns[mode].need[2].."\nblocks."
+		chestSign(locations.wall,msg)
+
+	--Place decor chest
+		dispMsg = "Placing decoration chest"
+		drawScreen()
+		msg = "Wall decor chest\nNeed min\n"..patterns[mode].need[3].."\nblocks."
+		chestSign(locations.decor,msg)
+
+	--Place roof
+		dispMsg = "Placing roof chest"
+		drawScreen()
+		msg = "Roof chest\nNeed min\n"..patterns[mode].need[4].."\nblocks."
+		chestSign(locations.roof,msg)
+
+	--Place glass
+	dispMsg = "Placing glass chest"
+		drawScreen()
+		msg = "Glass chest\nNeed min\n"..patterns[mode].need[5].."\nblocks."
+		chestSign(locations.glass,msg)
+
+	--Place trashcan
+		dispMsg = "Placing trash chest"
+		drawScreen()
+		msg = "Trash chest"
+		chestSign(locations.trash,msg)
+	
+	dispMsg = "Finished placing chests.   See turtle."
+	drawScreen()
+	goHome(true)
+	goFace("forward")
+	print("Ok chests are placed.")
+	print("Please go fill them.")
+	print(" ")
+	print("Press enter once ready")
+	read()
+		state = 4 -- Switch over to build floor
+	return true
+
+end   -- End of state = 3, placing chest
+
+function buildFloor()  -- State 4, builing floor
+	dispMsg = "Filling up"
+	drawScreen()
+	
+	restockItems(true)
+	--Go to starting location
+	zX = 0-patterns[mode].intMove
+	goTo(zX,0,1,false)
+	goFace("forward")
+	local direct = "forward"
+				--Begin width loop
+				for w = 1, patterns[mode].width, 1 do
+				--Begin depth loop
+					for d = 2, patterns[mode].depth, 1 do 
+						place = true
+						slot = 1
+						goMove(direct,1)
+						place = false
+						
+						dispMsg="Width: "..tostring(w).." of "..tostring(patterns[mode].width)
+						dispMsg=dispMsg..", Depth: "..tostring(d).." of "..tostring(patterns[mode].depth)
+						drawScreen()
+						if counter > 9 then
+							checkFuel()
+							counter = 0
+						end
+					end
+					
+					-- End of line move to next (if there is a next)
+					print("End of line, moving to next line")
+					if w ~= patterns[mode].width then
+							pFace=face
+							place = true
+							goMove("right",1)
+							place = false
+						if pFace == 0 then
+							direct = "back" 
+						elseif pFace == 2 then
+							direct = "forward"
+						else
+							print("I'm not going in the correct direction!!!")
+							return false
+						end
+					else 
+						place = true
+						slot = 1
+						goMove("left",1)
+						place = false
+					end
+				end -- end of width loop
+	
+	--Finished building floor, empty spares
+	dropItems(2,0)
+	goHome()
+	dispMsg = "Finished building floor, carry on?"
+	drawScreen()
+	read()
+	state = 5
+return true
+end  -- End of state 4, building floor
+
+function buildWalls()
+	goMove("forward",1)	
+	dispMsg = "Filling up"
+	drawScreen()
+	
+	restockItems(true)
+	--Go to starting location
+	zX = 0-patterns[mode].intMove
+	goMove("forward",1)
+	goFace("forward")
+	local direct = "foward"
+	for key,value in ipairs(patterns[mode].wall) do
+		zX = 0-patterns[mode].intMove
+		goTo(zX,key,1,false)
+		goFace("forward")
+		tF = 0
+		
+		for w = 1, 4, 1 do -- Loop for each wall
+			for row = 1, #value, 1 do
+				char = string.sub(value,row,row)
+				--Select the slot
+				if char == "w" then
+					slot = 1
+				elseif char == "d" then
+					slot = 2
+				elseif char == "g" then
+					slot = 3
+				else
+					dispMsg="Error in wall pattern"
+					drawError()
+					error("Reset the turtle first")
+				end
+				
+				place = true
+				goMove(tostring(tF),1)
+				place = false
+				
+				if counter > 9 then
+					checkFuel()
+					counter = 0
+				end
+				
+			end
+			
+			
+			--Turn right at the end of the loop
+			tF = face
+			tF = tF + 1
+			if tF == 4 then
+				tF = 0
+			end
+			goFace(tostring(tF))
+			
+		end
+		
+	end
+	
+	
+	
+	return true
+end
+
+function buildRoof()
+end
+
+function Complete()
+end
+
+for n,m in ipairs(rs.getSides()) do rednet.open(m) end -- Opens all rednet sides.
+dispMsg="Initial output"
+drawScreen()
+
+--Testing
+
+drawScreen()
+status = {}
+status[1] = {name="Startup",modal=startSystem } 
+status[2] = {name="Clearing area",modal=clearArea }
+status[3] = {name="Placing chests",modal=placeChests }
+status[4] = {name="Building Floor",modal=buildFloor }
+status[5] = {name="Build walls",modal=buildWalls }
+status[6] = {name="Build roof",modal=buildRoof }
+status[7] = {name="Complete",modal=Complete }
+
+
+-- Start of main script
+
+term.clear()
+term.setCursorPos(1,1)
+	print("Loaded Snipe's house builder. Initialising...")
+	sleep(2)
+while true do
+		--Print out my current status
+--		print("Mode: "..tostring(state).." "..status[state].name.." - Running this now")
+--		read()
+		res = status[state].modal()
+		if res == false then
+		error("Error in function, quitting.")
+		end
+	--[[
+	term.clear()
+	term.setCursorPos(1,1)
+	print("Finished a loop, resting for a bit. "..tostring(state))
+	sleep(2.5)]]--
+end

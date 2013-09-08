@@ -1,0 +1,95 @@
+running = true
+
+function drawScreen()
+	term.clear()
+	term.setCursorPos(1,1)
+	
+
+	print("*****Snipes control program v1.0*******")
+	print(" Key config:    X key: Exit            ")
+	print("   Arrows:                             ")
+	print("       Up:    Move forward             ")
+	print("       Down:    Move back              ")
+	print("       Left:    Turn left           ")
+	print("       Right:   Turn right          ")
+	print("  A key: Move up    D key: Dig forward")
+	print("  Z key: Move down  C Key: Dig down")
+	print("***************************************")
+end
+
+drawScreen()
+while running do
+	
+	local event, p1 = os.pullEvent()
+	drawScreen()
+	if event == "key" then
+		if p1 ==  45 then -- X (exit)
+			running = false
+		elseif p1 == 200 then -- Up arrow
+			if turtle.forward() then
+				print("Moved forward")
+			else
+				print("Failed move forward")
+			end
+		elseif p1 == 208 then -- Down arrow
+			if turtle.back() then
+				print("Moved back")
+			else
+				print("Failed move back")
+			end
+		elseif p1 == 203 then -- Left arrow
+			if turtle.turnLeft() then
+				print("Turned left")
+			else
+				print("Couldn't turn left")
+			end
+		elseif p1 == 205 then -- Right arrow
+			if turtle.turnRight() then
+				print("Turned right")
+			else
+				print("Couldn't turn right")
+			end
+		elseif p1 == 30 then -- A (move up)
+			if turtle.up() then
+				print("Moved up")
+			else
+				print("Failed move up")
+			end
+		elseif p1 == 44 then -- Z (move down)
+			if turtle.down() then
+				print("Moved down")
+			else
+				print("Failed move down")
+			end
+		elseif p1 == 32 then -- D (dig forward)
+			if turtle.dig() then
+				print("Dug forward")
+			else
+				print("Failed to dig infront of me")
+			end
+		elseif p1 == 46 then -- C (dg down)
+			if turtle.digDown() then
+				print("Dug down")
+			else
+				print("Failed to dig down")
+			end
+		elseif p1 == 0 then -- E (dig up)
+			
+		elseif p1 == 0 then -- F (place forward)
+			
+		elseif p1 == 0 then -- R (place down)
+			
+		elseif p1 == 0 then -- V (place up)
+			
+		elseif p1 == 0 then -- 1 (Select slot 1)
+			
+		else
+			print("Pressed key - "..tostring(p1))
+		end
+		
+	end
+end
+
+term.clear()
+term.setCursorPos(1,1)
+print("Shut down control interface")

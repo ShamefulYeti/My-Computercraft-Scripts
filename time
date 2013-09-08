@@ -1,0 +1,9 @@
+mon = peripheral.wrap("top") -- replace "left" with the side your monitor is on
+mon.setTextScale(3) -- change 5 to any any number between 0.5 and 5 to change the size of the text
+while true do
+     mon.clear()
+     mon.setCursorPos(3,2)
+     local nTime = os.time()
+     mon.write(textutils.formatTime(nTime,false))
+     sleep(1)
+end

@@ -1,0 +1,556 @@
+
+---Configs
+
+monSide = "left"
+controlSide = "top"
+bunSide = "back"
+maxTemp = 5000
+safeTemp = 500
+maxEnergy = 1000
+refreshTime = 30
+
+mainStorageSlot = 7
+mainStorageEnergy = 0
+mainStorageMax = 100000000
+-- Define main table --
+react = {}
+
+react[1] = {}
+react[1].colour = colors.magenta
+react[1].rSlot = 1
+react[1].eSlot = 4
+react[1].energy = 1
+react[1].maxEnergy = 10000000
+react[1].heat = 1
+react[1].powered = false
+react[1].cooldown = false
+
+react[2] = {}
+react[2].colour = colors.yellow
+react[2].rSlot = 2
+react[2].eSlot = 5
+react[2].energy = 1
+react[2].maxEnergy = 10000000
+react[2].heat = 1
+react[2].powered = false
+react[2].cooldown = false
+
+react[3] = {}
+react[3].colour = colors.blue
+react[3].rSlot = 3
+react[3].eSlot = 6
+react[3].energy = 1
+react[3].maxEnergy = 10000000
+react[3].heat = 1
+react[3].powered = false
+react[3].cooldown = false
+
+
+
+
+-- Start main function --
+function getTemp(reNum)
+-- This function retrieves the reactors temp and will handle overheat.
+	slot = react[reNum].rSlot
+	id, state, title, info = nuclearReader.get(slot)
+	react[reNum].heat = tonumber(info["heat"])
+
+	if react[reNum].heat > maxTemp then
+		react[reNum].powered = false
+		react[reNum].cooldown = true
+	end
+end
+
+function runGetEnergy(slot)
+--Ths function will get the energy level on storage units
+	local energy = 0
+	id, state, title, info = nuclearReader.get(slot)
+	energy = tonumber(info["energyL"])
+
+	return energy
+end
+
+function getEnergy(reNum)
+	-- This function retireves the energy level on a reactors storage unit
+	slot = react[reNum].eSlot
+	react[reNum].energy = runGetEnergy(slot)
+
+	if react[reNum].energy < 513 then
+		react[reNum].powered = true
+	elseif react[reNum].energy >= react[reNum].maxEnergy then
+		react[reNum].powered = false
+	end
+
+end
+
+function setReactors()
+	local num = 0
+	
+	for i = 1,3 do
+		if react[i].powered == true and react[i].cooldown == false then
+			num = num + react[i].color
+		end
+	end
+	 
+	rs.setBundledOutput(bunSide,num)
+end
+
+function tempColours(temp)
+local data = {}
+temp = tonumber(temp)
+if temp ~= nil then
+	if temp < 1000 then -- Cold
+		data["fore"] = colors.white
+		data["back"] = colors.lightBlue
+	elseif temp > 1000 and temp < 3000 then -- Warm
+		data["fore"] = colors.white
+		data["back"] = colors.orange		
+	elseif temp > 3000 and temp < 5000 then -- Hot
+		data["fore"] = colors.white
+		data["back"] = colors.pink		
+	elseif temp > 5000  then -- Overload
+		data["fore"] = colors.white
+		data["back"] = colors.red		
+	else
+		data["fore"] = colors.white
+		data["back"] = colors.red		
+	end
+else
+		data["fore"] = colors.white
+		data["back"] = colors.red		
+end	
+	return data
+end
+
+function comma_value(amount)
+  local formatted = amount
+  while true do  
+    formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
+    if (k==0) then
+      break
+    end
+  end
+  return formatted
+end
+
+function drawScreen()
+
+local rand = math.random(1,99)
+local colours = {}
+colours[1] = {}
+colours[1].fore = colors.black
+colours[1].back = colors.magenta
+colours[2] = {}
+colours[2].fore = colors.black
+colours[2].back = colors.yellow
+colours[3] = {}
+colours[3].fore = colors.white
+colours[3].back = colors.blue
+
+colours[4] = {} -- Reactor Online
+colours[4].fore = colors.black
+colours[4].back = colors.green
+colours[5] = {} -- Reactor Offline
+colours[5].fore = colors.white
+colours[5].back = colors.red
+
+
+mon = peripheral.wrap(monSide)
+
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.black)
+
+mon.clear()
+mon.setCursorPos(60,26)
+mon.write(tostring(rand))
+mon.setCursorPos(1,1) -- x,y
+
+--Screen size = 61 x, 21 y
+
+--Reactor 1  x1 - x20
+--Reactor 2  x21 - x40
+--Reactor 3  x41 - x60
+
+
+--Draw Titles
+
+	--Reactor1
+	mon.setTextColor(colours[1].fore)
+	mon.setBackgroundColor(colours[1].back)
+	mon.setCursorPos(3,1)
+	mon.write("               ")
+	mon.setCursorPos(3,2)
+	mon.write("   Reactor 1   ")
+	mon.setCursorPos(3,3)
+	mon.write("               ")
+	--Reactor2
+	mon.setTextColor(colours[2].fore)
+	mon.setBackgroundColor(colours[2].back)
+	mon.setCursorPos(24,1)
+	mon.write("               ")
+	mon.setCursorPos(24,2)
+	mon.write("   Reactor 2   ")
+	mon.setCursorPos(24,3)
+	mon.write("               ")	
+	
+	--Reactor3
+	mon.setTextColor(colours[3].fore)
+	mon.setBackgroundColor(colours[3].back)
+	mon.setCursorPos(44,1)
+	mon.write("               ")
+	mon.setCursorPos(44,2)
+	mon.write("   Reactor 3   ")
+	mon.setCursorPos(44,3)
+	mon.write("               ")
+	
+-- Draw temperature
+
+	--Reactor1
+	temp = tostring(react[1].heat)
+	t = tempColours(react[1].heat)
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.gray)		
+	mon.setCursorPos(3,5)
+	mon.write("  Temperature  ")	
+	mon.setTextColor(t["fore"])
+	mon.setBackgroundColor(t["back"])
+	mon.setCursorPos(3,6)
+	mon.write("               ")	
+	mon.setCursorPos(3,7)
+	mon.write("               ")	
+	mon.setCursorPos(3,8)
+	mon.write("               ")
+	mon.setCursorPos(3,9)
+	mon.write("               ")
+	L = string.len(temp)
+	midStart = math.floor( (15 / 2) - (L / 2) )
+	mon.setCursorPos(midStart+3,7)
+	mon.write(temp)
+	if react[1].cooldown then
+		mon.setTextColor(colors.white)
+		mon.setBackgroundColor(colors.blue)
+		mon.setCursorPos(3,9)
+		mon.write("    Cooling    ")		
+	end
+	
+	--Reactor2
+	temp = tostring(react[2].heat)
+	t = tempColours(react[2].heat)
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.gray)		
+	mon.setCursorPos(24,5)
+	mon.write("  Temperature  ")	
+	mon.setTextColor(t["fore"])
+	mon.setBackgroundColor(t["back"])
+	mon.setCursorPos(24,6)
+	mon.write("               ")	
+	mon.setCursorPos(24,7)
+	mon.write("               ")	
+	mon.setCursorPos(24,8)
+	mon.write("               ")
+	mon.setCursorPos(24,9)
+	mon.write("               ")
+	L = string.len(temp)
+	midStart = math.floor((15 / 2) - (L / 2) )
+	mon.setCursorPos(midStart+24,7)
+	mon.write(temp)
+	if react[2].cooldown then
+		mon.setTextColor(colors.white)
+		mon.setBackgroundColor(colors.blue)
+		mon.setCursorPos(24,9)
+		mon.write("    Cooling    ")		
+	end
+	
+	--Reactor3
+	temp = tostring(react[3].heat)
+	t = tempColours(react[3].heat)
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.gray)		
+	mon.setCursorPos(44,5)
+	mon.write("  Temperature  ")	
+	mon.setTextColor(t["fore"])
+	mon.setBackgroundColor(t["back"])
+	mon.setCursorPos(44,6)
+	mon.write("               ")	
+	mon.setCursorPos(44,7)
+	mon.write("               ")	
+	mon.setCursorPos(44,8)
+	mon.write("               ")
+	mon.setCursorPos(44,9)
+	mon.write("               ")
+	L = string.len(temp)
+	midStart = math.floor((15 / 2) - (L / 2) )
+	mon.setCursorPos(midStart+44,7)
+	mon.write(temp)
+	if react[3].cooldown then
+		mon.setTextColor(colors.white)
+		mon.setBackgroundColor(colors.blue)
+		mon.setCursorPos(44,9)
+		mon.write("    Cooling    ")		
+	end
+	
+--Draw status indicators
+	
+	--Reactor1
+	if react[1].powered then
+		mon.setTextColor(colors.black)
+		mon.setBackgroundColor(colors.lime)		
+		text = "     Online    "
+	else
+		mon.setTextColor(colors.white)
+		mon.setBackgroundColor(colors.red)		
+		text = "    Offline    "
+	end
+	mon.setCursorPos(3,11)
+	mon.write("               ")
+	mon.setCursorPos(3,12)
+	mon.write(text)
+	mon.setCursorPos(3,13)
+	mon.write("               ")	
+	
+	--Reactor2
+	if react[2].powered then
+		mon.setTextColor(colors.black)
+		mon.setBackgroundColor(colors.lime)		
+		text = "     Online    "
+	else
+		mon.setTextColor(colors.white)
+		mon.setBackgroundColor(colors.red)		
+		text = "    Offline    "
+	end
+	mon.setCursorPos(24,11)
+	mon.write("               ")
+	mon.setCursorPos(24,12)
+	mon.write(text)
+	mon.setCursorPos(24,13)
+	mon.write("               ")	
+	
+	--Reactor3
+	if react[3].powered then
+		mon.setTextColor(colors.black)
+		mon.setBackgroundColor(colors.lime)		
+		text = "     Online    "
+	else
+		mon.setTextColor(colors.white)
+		mon.setBackgroundColor(colors.red)		
+		text = "    Offline    "
+	end
+	mon.setCursorPos(44,11)
+	mon.write("               ")
+	mon.setCursorPos(44,12)
+	mon.write(text)
+	mon.setCursorPos(44,13)
+	mon.write("               ")	
+	
+	
+-- Draw EU percentages
+	
+
+	--Reactor1
+	percent = math.floor(react[1].energy/react[1].maxEnergy*100)
+	percent = tostring(percent).." %"
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.gray)		
+	mon.setCursorPos(3,15)
+	mon.write("   MFSU Level  ")	
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.cyan)
+	mon.setCursorPos(3,16)
+	mon.write("               ")	
+	mon.setCursorPos(3,17)
+	mon.write("               ")	
+	mon.setCursorPos(3,18)
+	mon.write("               ")	
+	midStart = math.floor( (15 / 2) - (percent:len() / 2) )
+	mon.setCursorPos(midStart+3,17)
+	mon.write(percent)
+	--Reactor2
+	percent = math.floor(react[2].energy/react[2].maxEnergy*100)
+	percent = tostring(percent).." %"
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.gray)		
+	mon.setCursorPos(24,15)
+	mon.write("   MFSU Level  ")	
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.cyan)
+	mon.setCursorPos(24,16)
+	mon.write("               ")	
+	mon.setCursorPos(24,17)
+	mon.write("               ")	
+	mon.setCursorPos(24,18)
+	mon.write("               ")	
+	midStart = math.floor( (15 / 2) - (percent:len() / 2) )
+	mon.setCursorPos(midStart+24,17)
+	mon.write(percent)
+	--Reactor3
+	percent = math.floor(react[3].energy/react[3].maxEnergy*100)
+	percent = tostring(percent).." %"
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.gray)			
+	mon.setCursorPos(44,15)
+	mon.write("   MFSU Level  ")	
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.cyan)		
+	mon.setCursorPos(44,16)
+	mon.write("               ")	
+	mon.setCursorPos(44,17)
+	mon.write("               ")	
+	mon.setCursorPos(44,18)
+	mon.write("               ")	
+	midStart = math.floor( (15 / 2) - (percent:len() / 2) )
+	mon.setCursorPos(midStart+44,17)
+	mon.write(percent)
+	
+	--Main Storage
+	percent = math.floor(mainStorageEnergy/mainStorageMax*100)
+	percent = tostring(percent).." %"
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.gray)		
+	mon.setCursorPos(18,20)
+	mon.write("  Main Storage AESU Level ")
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.cyan)	
+	mon.setCursorPos(18,21)
+	mon.write("                          ")
+	mon.setCursorPos(18,22)
+	mon.write("                          ")
+	mon.setCursorPos(18,23)
+	mon.write("                          ")
+	midStart = math.floor( (25 / 2) - (percent:len() / 2) )
+	mon.setCursorPos(midStart+18,22)
+	mon.write(percent)	
+	
+	--Main Storage
+	eu = math.floor(mainStorageEnergy + react[1].energy + react[2].energy + react[3].energy)
+	eu = comma_value(eu)
+	eu = tostring(eu).." EU"
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.gray)		
+	mon.setCursorPos(18,24)
+	mon.write("  Total in system stored  ")
+	mon.setTextColor(colors.white)
+	mon.setBackgroundColor(colors.cyan)	
+	mon.setCursorPos(18,25)
+	mon.write("                          ")
+	mon.setCursorPos(18,26)
+	mon.write("                          ")
+	midStart = math.floor( (25 / 2) - (eu:len() / 2) )
+	mon.setCursorPos(midStart+18,26)
+	mon.write(eu)
+	
+end
+
+function gotTouch(x,y)
+x = tonumber(x)
+y = tonumber(y)
+	
+	
+	if x >= 3 and x <= 18 then
+		--Reactor 1 touch
+		if y >= 6 and y <= 9 then
+			-- Temperature touch
+			if react[1].cooldown then
+				react[1].cooldown = false
+			else
+				react[1].cooldown = true
+			end
+		elseif y >= 11 and y <= 13 then
+			-- Status touch
+			if react[1].powered then
+				react[1].powered = false
+			else
+				react[1].powered = true
+			end
+		end
+	elseif x >= 24 and x <= 39 then
+		--Reactor 2 touch
+		if y >= 6 and y <= 9 then
+			-- Temperature touch
+			if react[2].cooldown then
+				react[2].cooldown = false
+			else
+				react[2].cooldown = true
+			end
+		elseif y >= 11 and y <= 13 then
+			-- Status touch
+			if react[2].powered then
+				react[2].powered = false
+			else
+				react[2].powered = true
+			end
+		end		
+	elseif x >= 44 and x <= 59 then
+		--Reactor 3 touch
+		if y >= 6 and y <= 9 then
+			-- Temperature touch
+			if react[3].cooldown then
+				react[3].cooldown = false
+			else
+				react[3].cooldown = true
+			end
+		elseif y >= 11 and y <= 13 then
+			-- Status touch
+			if react[3].powered then
+				react[3].powered = false
+			else
+				react[3].powered = true
+			end
+		end		
+	end
+--setReactors()
+drawScreen()
+end
+
+--- Begin main script and loop
+
+--Initiallisation
+term.clear()
+term.setCursorPos(1,1)
+print("Initialising settings and checking reactors")
+sleep(2)
+rs.setBundledOutput(bunSide)
+----
+
+--- Set and connect to stuff
+mon = peripheral.wrap(monSide)
+nuclearReader  = peripheral.wrap(controlSide)
+drawScreen()
+
+
+running = true
+--Begin the main loop
+while running do
+	
+	
+	for i = 1,3 do --Get all the reactors temps
+		getTemp(i)
+	end
+--		setReactors() -- Set the reactor states (incase of crash/delay this is duplicated)
+
+	for i = 1,3 do --Get all the energy levels
+		getEnergy(i)
+	end
+	mainStorageEnergy = runGetEnergy(mainStorageSlot)
+--		setReactors() -- Set the reactor states (incase of crash/delay this is duplicated)
+	
+	
+	-- Set the timer and draw screen
+	drawScreen()
+	timer1 = os.startTimer(refreshTime)
+	sleeping = true
+	while sleeping  do
+	-- Wait for event (screen push, timer expire or computer input)
+	local event, p1, p2, p3 = os.pullEvent()
+			if event == "timer" and p1 == timer1 then
+				sleeping = false
+			elseif event == "monitor_touch"  then
+				gotTouch(p2,p3)
+			elseif event == "char" and p1 == "r" then
+				sleeping = false
+			elseif event == "char" and p1 == "x" then
+				sleeping = false
+				running = false
+			end
+	end
+	
+end

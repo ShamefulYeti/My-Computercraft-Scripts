@@ -1,0 +1,601 @@
+-- Config options
+boxSide = "right"
+monSide = "top"
+cableSide = "back"
+refreshTime = 10
+
+temps = {}
+temps.safe = 500
+temps.danger = 2000
+
+--Set and initialise main variable and reactor info
+cableOut = 0
+reactors = {}
+buttons = {}
+
+-- Status definition false = Offline, true = Online
+for i = 1,4 do
+	reactors[i] = {}
+	reactors[i].rSlot = nil
+	reactors[i].eSlot = nil
+	reactors[i].status = false
+	reactors[i].disabled = true
+	reactors[i].replenish = false
+	reactors[i].cooldown = true
+	reactors[i].name = "Reactor "..i
+	reactors[i].heat = 0
+	reactors[i].timeL = math.random(10000)
+	reactors[i].energy = math.random(100000000)
+	reactors[i].maxEnergy = 250		-- This loads on the search
+	reactors[i].line = colors.lightGray					-- Needs configs in updateSlots function
+	reactors[i].rLine = 0			-- Needs configs in updateSlots function
+	reactors[i].maxTime = 10000		-- Amount of time the cells last
+end
+mainEnergy = {}
+mainEnergy.slot = nil
+mainEnergy.current = 0
+mainEnergy.maxL = 1000000000
+mainEnergy.minL = 1000000 -- Minimum energy remaining before enabling reactors
+
+
+
+
+
+--Function to run through slots and check where the modules are
+function updateSlots(name,slot,data)
+	if name == "Reactor1" then
+		reactors[1].rSlot = slot
+		reactors[1].disabled = false
+		reactors[1].line = colors.white
+		reactors[1].rLine = colors.green
+	elseif name == "Reactor2" then
+		reactors[2].rSlot = slot
+		reactors[2].disabled = false
+		reactors[2].line = colors.orange
+		reactors[2].rLine = colors.yellow
+	elseif name == "Reactor3" then
+		reactors[3].rSlot = slot
+		reactors[3].disabled = false
+		reactors[3].line = colors.magenta
+		reactors[3].rLine = colors.pink
+	elseif name == "Reactor4" then
+		reactors[4].rSlot = slot
+		reactors[4].disabled = false
+		reactors[4].line = colors.lightBlue
+		reactors[4].rLine = colors.cyan
+	elseif name == "Power1" then
+		reactors[1].eSlot = slot
+		reactors[1].maxEnergy = data["maxStorageL"]
+	elseif name == "Power2" then
+		reactors[2].eSlot = slot
+		reactors[2].maxEnergy = data["maxStorageL"]
+	elseif name == "Power3" then
+		reactors[3].eSlot = slot
+		reactors[3].maxEnergy = data["maxStorageL"]
+	elseif name == "Power4" then
+		reactors[4].eSlot = slot
+		reactors[4].maxEnergy = data["maxStorageL"]
+	elseif name == "PowerMain" then
+		mainEnergy.slot = slot
+		mainEnergy.maxL = data["maxStorageL"]
+	end
+	
+end
+
+
+-- General use functions
+
+
+--[[ rPrint(struct, [limit], [indent])   Recursively print arbitrary data. 
+	Set limit (default 100) to stanch infinite loops.
+	Indents tables as [KEY] VALUE, nested tables as [KEY] [KEY]...[KEY] VALUE
+	Set indent ("") to prefix each line:    Mytable [KEY] [KEY]...[KEY] VALUE
+--]]
+function rPrint(s, l, i) -- recursive Print (structure, limit, indent)
+	l = (l) or 100; i = i or "";	-- default item limit, indent string
+	if (l<1) then print "ERROR: Item limit reached."; return l-1 end;
+	local ts = type(s);
+	if (ts ~= "table") then print (i,ts,s); return l-1 end
+	print (i,ts);           -- print "table"
+	for k,v in pairs(s) do  -- print "[KEY] VALUE"
+		l = rPrint(v, l, i.."\t["..tostring(k).."]");
+		if (l < 0) then break end
+	end
+	return l
+end	
+
+function explode(div,str) -- credit: http://richard.warburton.it
+  if (div=='') then return false end
+  local pos,arr = 0,{}
+  -- for each divider found
+  for st,sp in function() return string.find(str,div,pos,true) end do
+    table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
+    pos = sp + 1 -- Jump past current divider
+  end
+  table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
+  return arr
+end
+
+function commaValue(amount)
+  local formatted = amount
+  while true do  
+    formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
+    if (k==0) then
+      break
+    end
+  end
+  return formatted
+end
+
+function SecondsFormat(sSeconds)
+		local nSeconds = tonumber(sSeconds)
+		if nSeconds == 0 then
+			--return nil;
+			return "00:00:00";
+		else
+			nHours = math.floor(nSeconds/3600)
+			nMins = math.floor(nSeconds/60 - (nHours*60))
+			nSecs = math.floor(nSeconds - nHours*3600 - nMins *60)
+			if string.len(nHours) == 1 then nHours = "0"..tostring(nHours) end
+			if string.len(nMins) == 1 then nMins = "0"..tostring(nMins) end
+			if string.len(nSecs) == 1 then nSecs = "0"..tostring(nSecs) end
+			
+			return nHours..":"..nMins..":"..nSecs
+		end
+end
+
+
+
+
+
+
+function registerButton(name, startX,startY,endX,endY)
+	buttons[name] = {}
+	buttons[name].startX = startX
+	buttons[name].startY = startY
+	buttons[name].endX = endX
+	buttons[name].endY = endY
+
+end
+
+function searchButton(sX,sY)
+	local result = nil
+	
+	for key,value in pairs(buttons) do
+		if sX >= value.startX and sX <= value.endX then
+			-- It's the horizontal range
+			if sY >= value.startY and sY <= value.endY then
+				-- I found a button
+				result = tostring(key)
+				return result
+			end
+		end
+	end
+	
+	return result
+end
+
+
+
+-- Program specifc function
+
+function checkSlots()
+misc = peripheral.wrap(boxSide)
+num = misc.getSlots()
+
+	for i = 1,num do
+		id, state, title, data = misc.get(i)
+		updateSlots(title,i,data)
+	end
+
+
+end
+
+--[[
+
+--Funtion to refresh data
+function refreshInfo()
+misc = peripheral.wrap(boxSide)
+
+	-- Run through each active reactor and update details --
+	for key,react in pairs(reactors) do -- Loop through each reactor
+		if react.disabled == false then
+			-- Pull in the info from the reader
+			id, state, title,dataR = misc.get(react.rSlot)
+			id, state, title,dataE = misc.get(react.eSlot)
+			-- Update the current details --
+			reactors[key].heat = dataR["heat"]
+			reactors[key].timeL = dataR["timeLeft"]
+			reactors[key].energy = dataE["energyL"]
+			end
+	end		
+	
+	-- Update the main storage unit --
+		id, state, title, data = misc.get(mainEnergy.slot)
+		mainEnergy.current = data["energyL"]
+
+
+	-- Calculate and set the status of the reactor as neeeded --
+	for key,react in pairs(reactors) do -- Loop through each reactor
+		if react.disabled == false then		
+			
+			-- Turn off any cooldown if the reactor is cool enough
+			if react.heat < temps.safe then
+				reactors[key].cooldown = false
+			end
+			-- Check if overall energy below limit and enable if is
+			if mainEnergy.current <= mainEnergy.minL then
+				reactors[key].status = true
+			end
+			-- Disable reactor if it's charging station is full
+			if react.energy >= react.maxEnergy then
+				reactors[key].status = false
+			end
+			-- Enable cooldown if it is overheated
+			if react.heat >= temps.danger then 
+				reactors[key].cooldown = true
+			end
+			
+			
+			end
+	end
+	
+	
+end
+
+function setStatus()
+cableOut = 0		-- Disable all reactors
+	for key,react in pairs(reactors) do -- Loop through each reactor
+		if react.disabled == false then		
+			
+			if react.cooldown == false and react.status == true then
+				-- If reactor not on a colldown cycle and it's active, then well activate it
+				cableOut = cableOut + react.line
+			end
+				
+		end
+	end
+	redstone.setBundledOutput(cableSide,cableOut)
+end
+
+
+
+]]--
+
+function drawText(text,startX,startY,background,font, length, height, boxed,center)
+mon = peripheral.wrap(monSide)
+curX = startX
+curY = startY
+	if background == nil then
+		background = colors.black
+	end
+	if font == nil then
+		font = colors.white
+	end
+	if length == nil then
+		length = string.len(text)
+	end
+	if height == nil then
+		height = 1
+	end
+	if length < string.len(text) then
+		length = string.len(text)
+	end
+	
+	-- Make me a border of 1 to width
+	if boxed == true then
+		length = length + 2
+	end
+	
+	-- Make box uneven
+	if (height % 2 == 0) then
+    height = height+1
+	end
+	
+	-- Set some things ups
+	mon.setTextColor(font)
+	mon.setBackgroundColor(background)
+	
+	-- Draw background
+	for i = 1,height do
+		temp = ""
+		for i = 1,length do
+			temp = temp.." "
+		end
+		mon.setCursorPos(curX,curY)
+		mon.write(temp)
+		curY = curY + 1
+	end
+	
+	-- Now add the text
+		-- Set the starting row
+		if height > 1 then
+			curY = startY + math.floor(height/2)
+		else
+			curY = startY
+		end
+		-- Change the length fields if we want our field boxed
+		if boxed == true then
+			length = length - 2
+			startX = startX + 1
+		end
+		-- Set the starting x postion
+		if center == true then -- If you want it centred
+			curX = startX + math.ceil((length / 2) - (text:len() / 2))
+		else
+			curX = startX
+		end
+		--Draw the text
+		mon.setCursorPos(curX,curY)
+		mon.write(text)
+	
+	--Reset lengths
+	if boxed == true then
+		length = length + 2
+		startX = startX - 1
+	end
+	
+	
+	-- Return the postion where we ended up
+	endx = startX + length
+	return endx
+end
+
+function drawPercent(text, startX,startY,curV,maxV, back1,back2,font)
+mon = peripheral.wrap(monSide)
+curX = startX
+curY = startY
+
+	if back1 == nil then
+		back1 = colors.green	--- This is the full bar colour
+	end
+	if back2 == nil then
+		back2 = colors.blue	--- This is the empty bar colour
+	end
+	if font == nil then
+		font = colors.white
+	end
+	
+	
+		mon.setTextColor(font)
+		percent = math.floor((curV/maxV)*100)
+		tPer = percent
+		percent = tostring(percent).."%"
+		percent = text.." ("..percent..")"
+		tNum = 0
+
+		--Draw the bar, it has 10 values (10% for each)
+		for i = 1,50 do 
+			if tPer > tNum then
+				--Percent is bigger than what I'm drawing so draw a "full" bar
+				mon.setBackgroundColor(back1)
+			else
+				--Percent is smaller/equal to the bar I'm drawing so draw a "empty" bar
+				mon.setBackgroundColor(back2)
+			end
+			
+			-- Work out the text to fill in the square
+			c = i - 1
+			if c > 0 then
+				if c <=  string.len(percent) then
+					text = string.sub(percent,c,c)
+				else
+					text = " "
+				end 
+			else
+				text = " "
+			end
+			
+			-- Write the text
+			mon.setCursorPos(curX,startY)
+			mon.write(text)
+			-- Increment all the values
+			curX = curX + 1
+			tNum = tNum + 2
+		end
+		
+		endX = startX + 50
+		return endX
+	end
+
+function drawScreen()
+mon = peripheral.wrap(monSide)
+x,y = mon.getSize()
+
+	-- Draw main header
+	
+	text = "Reactor Control System"
+	length = x - 20
+	drawText(text,10,2,colors.blue,colors.white, length, 3, true,true)
+	
+	offsetX 	= 	5
+	offsetY	= 	8
+	
+	-- Draw the main body
+	for key,react in pairs(reactors) do
+
+		currX = offsetX
+		currY = offsetY
+		-- Draw status
+		if react.status == true then
+			back = colors.lime
+			text = "Online"
+			local font = colors.black
+		else
+			back = colors.red
+			text = "Offline"
+			local font = colors.white
+		end
+
+		drawText(text,offsetX,offsetY,back,colors.white,9,5,true,true)
+		local tempY = offsetY+3
+		
+		-- Draw Disabled
+		if react.disabled == true then
+			drawText("Disabled",offsetX,offsetY,colors.gray,colors.black,9,5,true,true)
+		end
+		-- Draw cooldown
+		if react.cooldown == true then
+			drawText("Cooldown",offsetX,offsetY+4,colors.lightBlue,colors.black,9,1,true,true)
+			tempY = tempY  - 1
+			registerButton("R"..tostring(key).."-CoolT",offsetX,offsetY+4,offsetX+9,offsetY+4)
+		end
+		
+		-- Register the main button
+
+
+		registerButton("R"..tostring(key).."-Toggle", offsetX,offsetY,offsetX+9,tempY)		
+		
+		
+		-- Draw title
+		currX = drawText("   ",offsetX+13,offsetY,react.line,colors.black,0,1,false,false)
+		currX = drawText(react.name,currX,offsetY,colors.black,react.line,0,1,true,false)
+		
+		-- Draw bars
+			-- First draw the time left before replenishing
+		text = "Time left: "..SecondsFormat(react.timeL)
+		drawPercent(text, offsetX+13,offsetY+3,react.timeL,react.maxTime, colors.green,colors.gray,colors.white)
+			-- Second draw the amount of EU stored in the buffer
+		text = commaValue(react.energy).." EU"
+		drawPercent(text, offsetX+13,offsetY+4,react.energy,react.maxEnergy, colors.blue,colors.gray,colors.white)
+		
+		offsetY = offsetY + 8
+	end
+	
+	
+	-- Draw buttons
+	currX = drawText("Reboot",x-20,y,colors.red,colors.white,0,1,true,true)
+	registerButton("Reboot",x-20,y,currX,y)
+	currX = drawText("Shutdown",x-10,y,colors.red,colors.white,0,1,true,true)
+	registerButton("Shutdown",x-10,y,currX,y)
+	
+	
+	-- Draw footer
+	text = math.random(100)
+	text = "Version 0.2 -- Random seed: "..tostring(text)
+	drawText(text,1,y,colors.black,colors.gray,0,1,false,false)
+	
+	
+	-- Print me the button table
+--	rPrint(buttons,nil,"Buttons")
+	
+end
+
+
+
+
+function buttonPush(sX,sY)
+mon = peripheral.wrap(monSide)
+x,y = mon.getSize()
+
+-- First check to see if the button push was on a reactor
+	local data = searchButton(sX,sY)
+	
+	if data ~= nil then
+		local tR = nil
+--		print("I found button: "..data)	-- Debug Info
+--		rPrint(data,nil,"Data")				-- Debug info
+		
+		data = explode("-",data)
+		if data[1] == "Reboot" then
+			currX = drawText("Reboot",x-20,y,colors.lime,colors.black,0,1,true,true)
+			registerButton("Reboot",x-20,y,currX,y)
+			print("Rebooting in 1")
+			sleep(1)
+			os.reboot()
+		elseif data[1] == "Shutdown" then
+			running = false
+			shutdown = true
+		elseif data[1] == "R1" then
+			tR = 1
+		elseif data[1] == "R2" then
+			tR = 2
+		elseif data[1] == "R3" then
+			tR = 3
+		elseif data[1] == "R4" then
+			tR = 4
+		end
+	
+		if tR ~= nil then
+			
+			if data[2] == "Toggle" then
+				if reactors[tR].status == false then
+					reactors[tR].status = true
+				else
+					reactors[tR].status = false
+				end
+			
+			elseif data[2] == "CoolT" then
+				reactors[tR].cooldown = false
+			end
+			
+			
+		end
+	
+	
+	
+	
+	
+	
+	
+	else
+		print("Nothing found for touch")
+	end	
+end
+
+
+
+
+
+
+----- Main script
+shutdown = false
+running = true
+timer1 = os.startTimer(1)
+checkSlots()
+
+while running == true do
+		local event, p1, p2, p3 = os.pullEvent()
+		
+		
+		--	print("Event: "..tostring(event).." -- P1: "..tostring(p1).." -- P2: "..tostring(p2).." -- p3: "..tostring(p3))
+			if event == "timer" and p1 == timer1 then
+				timer1 = os.startTimer(refreshTime)
+			elseif event == "monitor_touch"  then
+				buttonPush(p2,p3)
+			elseif event == "char" and p1 == "d" then
+				-- Refresh the screen
+			elseif event == "char" and p1 == "r" then
+				print("Rebooting in 1")
+				sleep(1)
+				os.reboot()
+			elseif event == "char" and p1 == "x" then
+				print("Exiting")
+				running = false
+			end
+		drawScreen()
+end
+
+
+while shutdown == true do
+mon = peripheral.wrap(monSide)
+x,y = mon.getSize()
+mon.clear()
+	-- Draw main header
+	
+	text = "System offline - push to restart"
+	tY = math.floor((y-7)/2)
+	length = x - 20
+	drawText(text,10,tY,colors.red,colors.white, length, 7, true,true)
+	mon.setBackgroundColor(colors.black)
+	
+	local event, p1, p2, p3 = os.pullEvent()
+	if event == "monitor_touch"  then
+			mon.setCursorPos(30,17)
+			drawText("Rebooting in 3 seconds.....",10,tY+7,colors.blue,colors.white,length,3,true,true)
+				print("Rebooting in 3")
+				sleep(3)
+				os.reboot()
+		
+	end
+end

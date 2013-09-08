@@ -1,0 +1,100 @@
+mSide = "left"
+miners = {}
+
+mineTime = 8
+clearupTime = 8
+
+--Initial turtle table and set base defaults
+function intTurtle(turtleID)
+	miners[turtleID] = {}
+	miners[turtleID].name = "Miner "..turtleID
+	miners[turtleID].state= 0
+end
+temp = {20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5} -- List of mining turtles
+	for key,value in pairs(temp) do
+		print("Initiallising : "..tostring(value))
+		intTurtle(value)
+	end
+temp = nil
+
+
+
+
+function moveForward()
+		allClear = true
+		for id,miner in pairs(miners) do
+			if miner.state ~= 0 then
+				allClear = false
+			end
+		end
+	if allClear then
+		shell.run("movePlat")
+	else
+		sendMsg("End") -- End cycle at end of timer (also resets all miners incase of server crash)
+		timer2 = os.startTimer(clearupTime)
+		return false
+	end
+end
+
+--Message each turtle to reset their state (incase of server crash/shutdown during mid cycle)
+
+function sendMsg(msg)
+	for id,miner in pairs(miners) do
+		print("sending message for "..tostring(id))
+		rednet.send(id,msg)
+	end
+
+end
+
+
+function drawScreen()
+	term.clear()
+	term.setCursorPos(1,1)
+	for id,miner in pairs(miners) do
+		print(miner.name..": "..miner.state)
+	end
+end
+
+rednet.open(mSide)
+timer1 = os.startTimer(5)
+running = true
+while running do
+	print("Waiting for OS event")
+	
+	local event, p1, p2, p3 = os.pullEvent()
+	
+		--	print("Event: "..tostring(event).." -- P1: "..tostring(p1).." -- P2: "..tostring(p2).." -- p3: "..tostring(p3))
+			
+			if event == "rednet_message" and p2 == "Placed" then
+				rednet.send(p1,"ack")
+				miners[p1].state = 1
+			elseif event == "rednet_message" and p2 == "Clear" then
+				rednet.send(p1,"ack")
+				miners[p1].state = 0
+			elseif event == "rednet_message" and p2 == "Error" then
+				rednet.send(p1,"ack")
+				miners[p1].state = 2
+			elseif event == "timer" and p1 == timer1 then
+				sendMsg("End") -- End cycle at end of timer (also resets all miners incase of server crash)
+				timer2 = os.startTimer(clearupTime)
+			elseif event == "timer" and p1 == timer2 then
+				moveForward()
+			elseif event == "char" and p1 == "t" then
+				sendMsg("Start")
+				timer1 = os.startTimer(mineTime)
+				timer2 = os.startTimer(mineTimer+clearupTime)
+				
+			elseif event == "char" and p1 == "y" then
+				sendMsg("End")
+			elseif event == "char" and p1 == "r" then
+				print("Rebooting in 2")
+				sleep(2)
+				os.reboot()
+			elseif event == "char" and p1 == "x" then
+				print("Exiting")
+				running = false
+			end
+
+	drawScreen()
+
+end

@@ -1,0 +1,372 @@
+--Saved locations
+locations = {}
+locations.mainChest = {0,0,0} -- x, y, z
+locations.sapChest = {3, 0, 5} 
+
+--Load defauts
+place = false
+x = 0			--Width (left/right)
+y = 0			--Height (up/down)
+z = 0			--Depth (forward/back)
+face = 0 	--Direction (0=forward, 1=right, 2=backwards, 3=left)
+dispMsg = "None"
+state = 1
+
+function drawScreen()
+local statuses = {}
+statuses[1] = {name="Tree Farm"} 
+statuses[2] = {name="Checking trees"}
+statuses[3] = {name="Cutting tree"}
+statuses[4] = {name="Resupply" }
+statuses[5] = {name="Empty" }
+statuses[6] = {name="Offline" }
+
+fuel = turtle.getFuelLevel()
+
+--Display info
+		term.clear()
+		term.setCursorPos(1,1)
+		term.write("Current Mode: "..tostring(state).." "..statuses[state].name)
+		term.setCursorPos(3,2)
+		term.write("Fuel Level: "..tostring(fuel))
+		term.setCursorPos(25,2)
+		term.write("Design: "..tostring(counter))
+		term.setCursorPos(1,3)
+		term.write("Current Location (from home base)")
+		term.setCursorPos(1,4)
+		term.write("X: "..tostring(x))
+		term.setCursorPos(10,4)
+		term.write("Left / Right")
+		
+		term.setCursorPos(1,5)
+		term.write("Y: "..tostring(y))
+		term.setCursorPos(10,5)
+		term.write("Up / Down")
+		
+		term.setCursorPos(1,6)
+		term.write("Z: "..tostring(z))
+		term.setCursorPos(10,6)
+		term.write("Forward / Back")
+		
+		term.setCursorPos(1,7)
+		local d = {"Forward / North (+Z)","Right / East (+X)","Back / South (-Z)","Left / West (-X)"}
+		term.write("F: "..tostring(face))
+		term.setCursorPos(10,7)
+		term.write(tostring(d[face+1]))
+
+		term.setCursorPos(1,9)
+		term.write("Message from function")
+		term.setCursorPos(1,10)
+		term.write(dispMsg)
+print("")
+local msg = ""
+msg = msg..tostring(state)..";"
+msg = msg..tostring(fuel)..";"
+msg = msg..tostring(mode)..";"
+msg = msg..tostring(x)..";"
+msg = msg..tostring(y)..";"
+msg = msg..tostring(z)..";"
+msg = msg..tostring(face)..";"
+msg = msg..tostring(dispMsg)..";"
+rednet.send(monitorID,msg)
+end
+
+function drawError()
+
+drawScreen()
+local tX = x
+local tY = y
+local tZ = z
+local tF = face
+ goHome(true)
+ goUp(1)
+
+
+print()
+print("Error has been found, carry on?")
+pull = read()
+	goMove("forward",1)
+	goTo(tX,tY,tZ,true)
+	goFace(tF)
+
+return pull
+end
+
+--Main movement funtions
+function goFace(d)
+	local faceDB= {}
+	faceDB["forward"] = 0
+	faceDB["right"] = 1
+	faceDB["back"] = 2
+	faceDB["left"] = 3
+	faceDB["north"] = 0
+	faceDB["east"] = 1
+	faceDB["south"] = 2
+	faceDB["west"] = 3
+	faceDB["0"] = 0
+	faceDB["1"] = 1
+	faceDB["2"] = 2
+	faceDB["3"] = 3
+	
+	d = tostring(d)
+	local direction = faceDB[d]
+	
+	if direction == face then
+		return true
+	else
+		while direction ~= face do
+			local compare = face - direction
+			if compare == 1 or compare == -3 then
+				--print("Going to try left -- "..tostring(compare))
+				turtle.turnLeft()
+				face = face - 1
+			else
+				turtle.turnRight()
+				face = face + 1
+			end
+			
+			if face == 4 then
+				face = 0
+			elseif face == -1 then
+				face = 3
+			end
+		end
+		return true
+	end
+end
+
+function goUp(t)
+	for i = 1, t, 1 do
+	turtle.digUp()
+	sleep(0.01)
+		if turtle.up() == false then
+		dispMsg="Couldn't move forward, please fix."
+		drawError()
+		goForward()
+		end
+	sleep(0.01)
+	y = y + 1
+	end
+end
+
+function goDown(t)
+if t < 1 then
+t = 1
+end
+	for i = 1, t, 1 do
+	turtle.digDown()
+	sleep(0.01)
+	turtle.down()
+	sleep(0.01)
+	y = y - 1
+	end
+end
+
+function goForward()
+
+	local moved = false
+	local tries = 0
+	moved = turtle.forward()
+	sleep(0.01)
+	
+	while tries < 4 and moved == false do
+		turtle.dig()
+		sleep(0.01)
+		moved = turtle.forward()
+		tries = tries + 1
+		sleep(0.01)
+	end 
+
+	
+	if moved == true then
+	counter = counter + 1
+		if face == 0 then -- Facing forward/north
+			z = z + 1
+			return true
+		elseif face == 1 then -- Facing right/east
+			x = x + 1
+			return true
+		elseif face == 2 then -- Facing back/south
+			z = z - 1
+			return true
+		elseif face == 3 then -- Facing left/west
+			x = x - 1
+			return true
+		else
+			dispMsg="Co-ord track error, quitting. Please reset me."
+			drawScreen()
+			error("This error was too serious, reset me")
+			return false
+		end
+		return true
+	else
+		dispMsg="Couldn't move forward, please fix."
+		drawError()
+		goForward()
+	end
+	return true
+end
+
+function goMove(d,t)
+	--Check direction facing
+	local c = goFace(d)
+	local i = 1
+	if c == true then
+		t = tonumber(t)
+		
+		for i = 1, t, 1 do
+
+			drawScreen()
+			if goForward() == false then
+				dispMsg = "Go forward, false, i = "..tostring(i).." , t = "..tostring(t)
+				drawError()
+				return false
+			end
+		end
+		return true
+	else
+		return false
+	end
+end
+
+function goTo(tX,tY,tZ,safe)
+	
+	if x == 0 and z == 0 then
+		goMove("forward",1)
+	end
+	
+	place = false
+--dispMsg = "Going to x="..tX..", y="..tY..", z="..tZ
+	drawScreen()
+--read()
+	if x > tX then
+		amount = 0
+		amount = x - tX
+		goMove("left",amount)
+	end
+	if x < tX then
+		amount = 0
+		amount = x - tX
+		amount = amount * -1 
+		goMove("right",amount)
+	end
+	
+	if z > tZ then 
+		amount = 0
+		amount = z - tZ
+		goMove("back",amount)
+	end
+	if z < tZ then
+		amount = 0
+		amount = z - tZ
+		amount = amount * -1
+		goMove("forward",amount)
+	end
+	
+	if y > tY then
+		amount = 0
+		amount = y - tY
+		goDown(amount)
+	end
+	if y < tY then
+		amount = 0
+		amount = y- tY
+		amount = amount * -1
+		goUp(amount)
+	end
+	
+	return true
+end
+
+function goToL(location,safe)
+	tX = location[1]
+	tY = location[2]
+	tZ = location[3]
+--	print("X="..tX..", Y="..tY..", Z="..tZ)
+--	read()
+	res = goTo(tX,tY,tZ,safe)
+end
+
+function goHome(safe) 
+	goTo(0,0,1,safe)
+	goMove("back",1)
+	goFace("forward")
+	drawScreen()
+end
+
+
+function checkFuel()
+	fuel = turtle.getFuelLevel()
+		while fuel < 20 do
+			dispMsg = "Need Fuel: Please type what slot it is in."
+			slot = drawError()
+			turtle.select(tonumber(slot))
+			turtle.refuel()
+			fuel = turtle.getFuelLevel()
+		end
+	return true
+end
+
+function cutTree()
+	dispMsg="Cutting down a tree"
+	turtle.select(1)
+	drawScreen()
+	turtle.dig()
+	goForward(1)
+	turtle.digDown()
+	c = 0
+	while turtle.detectUp() == true then
+		turtle.digUp()
+		goUp(1)
+		c = c + 1
+	end
+	goDown(c)
+	turtle.select(2)
+	turtle.placeDown()
+end
+
+function checkTree()
+	tutrle.select(1)
+	if turtle.detect()  == true then
+		cutTree()
+
+	else
+		goForward(1)
+
+	end
+end
+
+
+
+
+
+dispMsg="Initial output"
+drawScreen()
+
+-- Start of main script
+
+term.clear()
+term.setCursorPos(1,1)
+	print("Loaded Snipe's tree farmer. Initialising...")
+	sleep(2)
+running = true
+while running do
+	
+	dispMsg = "Please feed me: Slot1 wood - Slot2 Saplings"
+	drawScreen()
+	print("Press enter once read")
+	read()
+	checkFuel()
+	-- From starting point go to first tree
+	
+	goMove("right",1)
+	goMove("forward",2)
+	dispMsg = "Checking first tree"
+	read()
+	checkTree()
+	read()
+	
+	goHome()
+	dispMsg = "At home, dumping "
+	read()
+end
