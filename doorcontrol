@@ -1,0 +1,239 @@
+monSide = "top"
+
+buttons = {}
+buttons[1] = {}
+buttons[1].name = "Main Doors"
+buttons[1].state = true
+buttons[1].side = "left"
+buttons[1].mode = "timer"
+buttons[1].timeOpen = 10
+buttons[1].startX = 0
+buttons[1].startY = 0
+buttons[1].endX = 0
+buttons[1].endY = 0
+
+
+
+buttons[2] = {}
+buttons[2].name = "Maintenance"
+buttons[2].state = true
+buttons[2].side = "left"
+buttons[2].mode = "toggle"
+buttons[2].timeOpen = 10
+buttons[1].startX = 0
+buttons[1].startY = 0
+buttons[1].endX = 0
+buttons[1].endY = 0
+
+
+function toggle(id)
+	buttons[id].state = buttons[id].state and false or true
+
+	if buttons[id].mode = "timer" then
+		drawScreen()
+		setOutputs()
+		sleep(buttons[id].timeOpen)
+		buttons[id].state = buttons[id].state and false or true
+		drawScreen()
+		setOutputs()
+	end
+	
+end
+
+function setOutputs()
+	for key,value in pairs(buttons) do
+		rs.setOutput(value.side,value.state)
+	end
+end
+
+
+function searchButton(sX,sY)
+	local result = nil
+	
+	for key,value in pairs(buttons) do
+		if sX >= value.startX and sX <= value.endX then
+			-- It's the horizontal range
+			if sY >= value.startY and sY <= value.endY then
+				-- I found a button
+				result = tostring(key)
+				return result
+			end
+		end
+	end
+	
+	return result
+end
+function registerButton(id, startX,startY,endX,endY)
+	buttons[id].startX = startX
+	buttons[id].startY = startY
+	buttons[id].endX = endX
+	buttons[id].endY = endY
+end
+function drawText(text,startX,startY,background,font, length, height, boxed,center)
+mon = peripheral.wrap(monSide)
+curX = startX
+curY = startY
+	if background == nil then
+		background = colors.black
+	end
+	if font == nil then
+		font = colors.white
+	end
+	if length == nil then
+		length = string.len(text)
+	end
+	if height == nil then
+		height = 1
+	end
+	if length < string.len(text) then
+		length = string.len(text)
+	end
+	
+	-- Make me a border of 1 to width
+	if boxed == true then
+		length = length + 2
+	end
+	
+	-- Make box uneven
+	if (height % 2 == 0) then
+    height = height+1
+	end
+	
+	-- Set some things ups
+	mon.setTextColor(font)
+	mon.setBackgroundColor(background)
+	
+	-- Draw background
+	for i = 1,height do
+		temp = ""
+		for i = 1,length do
+			temp = temp.." "
+		end
+		mon.setCursorPos(curX,curY)
+		mon.write(temp)
+		curY = curY + 1
+	end
+
+	-- Now add the text
+		-- Set the starting row
+		if height > 1 then
+			curY = startY + math.floor(height/2)
+		else
+			curY = startY
+		end
+		-- Change the length fields if we want our field boxed
+		if boxed == true then
+			length = length - 2
+			startX = startX + 1
+		end
+		-- Set the starting x postion
+		if center == true then -- If you want it centred
+			curX = startX + math.ceil((length / 2) - (text:len() / 2))
+		else
+			curX = startX
+		end
+		--Draw the text
+		mon.setCursorPos(curX,curY)
+		mon.write(text)
+	
+	--Reset lengths
+	if boxed == true then
+		length = length + 2
+		startX = startX - 1
+	end
+	
+	
+	-- Return the postion where we ended up
+	endx = startX + length
+	return endx
+end
+
+function drawScreen()
+term.clear()
+mon = peripheral.wrap(monSide)
+mon.clear()
+mon.setCursorPos(1,1)
+startX =  9
+startY = 5
+
+print("Loaded Snipes Door Control")
+print("R - Reboot system")
+print("X - Exit System")
+print(" --- ")
+	for key,value in pairs(buttons) do
+		print(value.name.." - "..value.state and "Open" or "Closed")
+		
+		local background = value.state and colors.lime or colors.red
+		local font = value.state and colors.black or colors.white
+		local dName = value.state and "Open" or "Closed"
+		dName = value.name.." - "..dName
+		local endX = drawText(dName,startX,startY,background,font, 23, 3, true,true)
+		registerButton(key,startX,startY,endX,startY+3)
+		
+		startY = startY + 5
+	end
+	
+end
+function buttonPush(sX,sY)
+-- First check to see if the button push was on a reactor
+	local data = searchButton(sX,sY)
+	
+	if data ~= nil then
+		toggle(id)
+	end
+end
+
+----- Main script
+shutdown = false
+running = true
+timer1 = os.startTimer(1)
+drawScreen()
+setOutputs()
+while running == true do
+		local event, p1, p2, p3 = os.pullEvent()
+		
+		
+		--	print("Event: "..tostring(event).." -- P1: "..tostring(p1).." -- P2: "..tostring(p2).." -- p3: "..tostring(p3))
+			if event == "monitor_touch"  then
+				buttonPush(p2,p3)
+			elseif event == "char" and p1 == "o" then
+				toggle(1) -- Door 1: Main Door
+			elseif event == "char" and p1 == "p" then
+				toggle(2) -- Door 2: Maintenance
+			elseif event == "char" and p1 == "d" then
+				-- Refresh the screen
+			elseif event == "char" and p1 == "r" then
+				print("Rebooting in 1")
+				sleep(1)
+				os.reboot()
+			elseif event == "char" and p1 == "x" then
+				print("Exiting")
+				running = false
+			end
+		setOutputs()
+		drawScreen()
+end
+
+
+while shutdown == true do
+mon = peripheral.wrap(monSide)
+x,y = mon.getSize()
+mon.clear()
+	-- Draw main header
+	
+	text = "System offline - push to restart"
+	tY = math.floor((y-7)/2)
+	length = x - 20
+	drawText(text,10,tY,colors.red,colors.white, length, 7, true,true)
+	mon.setBackgroundColor(colors.black)
+	
+	local event, p1, p2, p3 = os.pullEvent()
+	if event == "monitor_touch"  then
+			mon.setCursorPos(30,17)
+			drawText("Rebooting in 3 seconds.....",10,tY+7,colors.blue,colors.white,length,3,true,true)
+				print("Rebooting in 3")
+				sleep(3)
+				os.reboot()
+		
+	end
+end
